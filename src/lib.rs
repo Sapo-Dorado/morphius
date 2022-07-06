@@ -7,6 +7,7 @@ use std::collections::{HashSet, HashMap};
 
 pub struct Document {
     pub questions: Vec<Question>,
+    pub answers: Option<Vec<Answer>>,
     pub layout: Vec<String>
 }
 
@@ -14,6 +15,17 @@ pub struct Question {
     pub vars: HashSet<String>,
     pub expressions: Vec<Expression>,
     pub layout: Vec<String>
+}
+
+pub struct Answer {
+    pub expressions: Vec<Expression>,
+    pub layout: Vec<String>
+}
+
+struct Content {
+    vars: HashSet<String>,
+    expressions: Vec<Expression>,
+    layout: Vec<String>
 }
 
 pub struct Expression {
@@ -31,7 +43,21 @@ pub fn process(input: &str) -> Document {
     }
     let questions: Vec<Question> = QUESTION.captures_iter(input).map(|cap| process_question(&cap[1])).collect();
     let layout: Vec<String> = QUESTION.split(input).map(String::from).collect();
-    Document{ questions, layout }
+    Document{ questions, answers: None, layout }
+}
+
+pub fn process_with_answers(input: &str) -> Document {
+    lazy_static! {
+        static ref QUESTION: Regex = Regex::new(r"(?s)\|<q>(.*?)</q>\|\s*\|<a>(.*?)</a>\|").unwrap();
+    }
+    let mut questions: Vec<Question> = Vec::new();
+    let mut answers: Vec<Answer> = Vec::new();
+    for cap in QUESTION.captures_iter(input) {
+        questions.push(process_question(&cap[1]));
+        answers.push(process_answer(&cap[2]));
+    }
+    let layout: Vec<String> = QUESTION.split(input).map(String::from).collect();
+    Document{ questions, answers: Some(answers), layout }
 }
 
 pub fn generate(doc: &Document, num_results: usize, num_questions: Option<usize>) -> Vec<String> {
@@ -80,13 +106,23 @@ fn gen_expression_text(expression: &Expression, scope: &HashMap<&str,i64>) -> St
 }
 
 fn process_question(question: &str) -> Question {
+    let content = get_content(question);
+    Question { vars: content.vars, expressions: content.expressions, layout: content.layout }
+}
+
+fn process_answer(answer: &str) -> Answer {
+    let content = get_content(answer);
+    Answer { expressions: content.expressions, layout: content.layout }
+}
+
+fn get_content(text: &str) -> Content {
     lazy_static! {
         static ref EXP: Regex = Regex::new(r"\|<e>(.*?)</e>\|").unwrap();
     }
-    let mut vars = HashSet::new();
-    let expressions: Vec<Expression> = EXP.captures_iter(question).map(|cap| process_expression(&cap[1], &mut vars)).collect();
-    let layout: Vec<String> = EXP.split(question).map(String::from).collect();
-    Question { vars, expressions, layout }
+    let mut vars: HashSet<String> = HashSet::new();
+    let expressions: Vec<Expression> = EXP.captures_iter(text).map(|cap| process_expression(&cap[1], &mut vars)).collect();
+    let layout: Vec<String> = EXP.split(text).map(String::from).collect();
+    Content{ vars, expressions, layout }
 }
 
 fn process_expression(expression: &str, vars: &mut HashSet<String>) -> Expression {
@@ -108,6 +144,8 @@ mod tests {
     const FORM1: &str = "Beginning|<q>Question 1</q>|Middle|<q>Question 2</q>|End";
     const FORM2: &str = "|<q>1</q>|Middle 1|<q>2</q>|Middle 2|<q>3</q>|";
     const FORM3: &str = "|<q>1</q>||<q>2</q>||<q>3</q>|";
+    const FORM4: &str = "|<q>1</q>||<a>3</a>|";
+    const FORM5: &str = "|<q>1</q>|\n\n          \t\t|<a>3</a>|";
 
 
     #[test]
@@ -181,5 +219,29 @@ mod tests {
         let result = generate(&doc, 3, Some(1));
         let num_re = Regex::new(r"^-?[[:digit:]]+$").unwrap();
         assert!(num_re.is_match(&result[0]));
+    }
+
+    #[test]
+    fn test_process_with_anwer() {
+        let doc1 = process_with_answers(FORM4);
+        match doc1.answers {
+            Some(_) => assert!(true),
+            None => assert!(false)
+        }
+
+        let doc2 = process(FORM4);
+        match doc2.answers {
+            Some(_) => assert!(false),
+            None => assert!(true)
+        }
+    }
+
+    #[test]
+    fn test_process_with_anwer_newlines_are_ok() {
+        let doc1 = process_with_answers(FORM5);
+        match doc1.answers {
+            Some(_) => assert!(true),
+            None => assert!(false)
+        }
     }
 }
