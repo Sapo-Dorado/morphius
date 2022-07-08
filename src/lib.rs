@@ -5,20 +5,39 @@ use rand::Rng;
 use std::cmp;
 use std::collections::{HashSet, HashMap};
 
+/// A Document is a template to be used to generate filled out tests
 pub struct Document {
+    ///This is a list of the questions in the Document, in the order provided
     pub questions: Vec<Question>,
+    ///This is a list of the other content in the Document that should stay in the same place when the questions move
     pub layout: Vec<String>
 }
 
+///A Test is generated from a Document and is ready for use
+pub struct Test {
+    ///A String representing the contents of the Test
+    pub content: String,
+    ///A String representing the answers of a Test
+    pub answers: String
+}
+
+///A Question is an object representing a question
 pub struct Question {
+    ///This is a list of variables used in the question
     pub vars: HashSet<Var>,
+    ///This is a list of expressions that need to be evaluated when generating the question text
     pub expressions: Vec<Expression>,
+    ///This is a list of the other content in the question that does not need to be evaluated
     pub layout: Vec<String>,
+    ///This is either the Answer to the question, if provided or None
     pub answer: Option<Answer>
 }
 
+///An Answer is the answer to a question. It is processed very similarly, it just uses the same scope as its parent question
 pub struct Answer {
+    ///This is a list of expressions that need to be evaluated using the same variable values as its parent question
     pub expressions: Vec<Expression>,
+    ///This is a list of the content in the Answer that doesn't need to be evaluated
     pub layout: Vec<String>
 }
 
@@ -28,23 +47,31 @@ struct Content {
     layout: Vec<String>
 }
 
+///An Expression represents a mathematical expression to be evaluated
 pub struct Expression {
+    ///This is a list of variables/other content that makes up the expression
     pub expression: Vec<ExpComp>
 }
 
-pub struct Test {
-    pub content: String,
-    pub answers: String
+#[derive(PartialEq, Eq, Hash)]
+///A Var holds information about a variable that is used to generate final values
+pub struct Var {
+    ///The variable name
+    pub name: String,
+    ///The type of the variable: either int or real
+    pub num_type: String,
+    ///The minimum value for this variable
+    pub min: String,
+    ///The maximum value for this variable
+    pub max: String
 }
 
-
-
-#[derive(PartialEq, Eq, Hash)]
-pub struct Var {
-    pub name: String,
-    pub num_type: String,
-    pub min: String,
-    pub max: String
+///This is an enum used to differentiate between variable names and other content of an expression
+pub enum ExpComp {
+    ///This denotes a variable name
+    Var(String),
+    ///This denotes everything other than variable names
+    Other(String)
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -53,11 +80,22 @@ struct Num {
     frac: Option<i64>
 }
 
-pub enum ExpComp {
-    Var(String),
-    Other(String)
-}
 
+
+
+
+///This function takes an input &str in the desired template format and generates a document. If the document has answers you should use process_with_answers.
+///
+/// # Arguments
+///
+/// * `input` - A string slice that holds the template contents for the Document
+///
+/// # Examples
+///
+/// ```
+/// use morphius;
+/// let doc = morphius::process("Document Contents");
+/// ```
 pub fn process(input: &str) -> Document {
     lazy_static! {
         static ref QUESTION: Regex = Regex::new(r"(?s)\|<q>(.*?)</q>\|").unwrap();
@@ -67,6 +105,18 @@ pub fn process(input: &str) -> Document {
     Document{ questions, layout }
 }
 
+///This function takes an input &str in the desired template format and generates a document. The input document must have answers provided for each question.
+///
+/// # Arguments
+///
+/// * `input` - A string slice that holds the template contents for the Document
+///
+/// # Examples
+///
+/// ```
+/// use morphius;
+/// let doc = morphius::process_with_answers("Document Contents with answers");
+/// ```
 pub fn process_with_answers(input: &str) -> Document {
     lazy_static! {
         static ref QUESTION: Regex = Regex::new(r"(?s)\|<q>(.*?)</q>\|\s*\|<a>(.*?)</a>\|").unwrap();
@@ -79,6 +129,21 @@ pub fn process_with_answers(input: &str) -> Document {
     Document{ questions, layout }
 }
 
+///This function takes an input Document, the number of tests that you want to generate and optionally the number of question per generated test
+///
+/// # Arguments
+///
+/// * `doc` - A reference to a Document for the template that you want to generate
+/// * `num_results` - The number of tests to generate
+/// * `num_quesitions` - The number of questions per test. Enter None to use all questions in the original order. To include all questions and reorder them, enter `Some(x}` where x is the total number of questions
+///
+/// # Examples
+///
+/// ```
+/// use morphius;
+/// let doc = morphius::process("|<q>Example Question 1</q>||<q>Example Question 2</q>|");
+/// morphius::generate(&doc, 5, Some(2));
+/// ```
 pub fn generate(doc: &Document, num_results: usize, num_questions: Option<usize>) -> Vec<Test> {
     match num_questions {
         Some(num_qs) => {
