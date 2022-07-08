@@ -11,7 +11,7 @@ pub struct Document {
 }
 
 pub struct Question {
-    pub vars: HashSet<String>,
+    pub vars: HashSet<Var>,
     pub expressions: Vec<Expression>,
     pub layout: Vec<String>,
     pub answer: Option<Answer>
@@ -23,7 +23,7 @@ pub struct Answer {
 }
 
 struct Content {
-    vars: HashSet<String>,
+    vars: HashSet<Var>,
     expressions: Vec<Expression>,
     layout: Vec<String>
 }
@@ -35,6 +35,22 @@ pub struct Expression {
 pub struct Test {
     pub content: String,
     pub answers: String
+}
+
+
+
+#[derive(PartialEq, Eq, Hash)]
+pub struct Var {
+    pub name: String,
+    pub num_type: String,
+    pub min: String,
+    pub max: String
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct Num {
+    whole: i64,
+    frac: Option<i64>
 }
 
 pub enum ExpComp {
@@ -102,9 +118,15 @@ fn gen_form(doc: &Document, order: Option<&Vec<usize>>) -> Test {
 
 fn gen_question_text(question: &Question) -> (String, String) {
     let mut rng = rand::thread_rng();
-    let mut scope:HashMap<&str,i64> = HashMap::new();
+    let mut scope:HashMap<&str,Num> = HashMap::new();
     for var in question.vars.iter() {
-        scope.insert(&var[..], rng.gen_range(0..100));
+        if var.num_type == "int" {
+            scope.insert(&var.name[..], Num{ whole: rng.gen_range(var.min.parse::<i64>().unwrap()..(var.max.parse::<i64>().unwrap()+1)), frac: None});
+        } else {
+            let whole = rng.gen_range(var.min.parse::<i64>().unwrap()..var.max.parse::<i64>().unwrap());
+            let frac: i64 = rng.gen_range(0..100);
+            scope.insert(&var.name[..], Num{ whole, frac: Some(frac) });
+        }
     }
 
 
@@ -118,22 +140,43 @@ fn gen_question_text(question: &Question) -> (String, String) {
     (content, answer)
 }
 
-fn gen_expression_text(expression: &Expression, scope: &HashMap<&str,i64>) -> String {
+fn gen_expression_text(expression: &Expression, scope: &HashMap<&str,Num>) -> String {
     let expr = expression.expression.iter().map(|exp_cmp| {
         match exp_cmp {
-            ExpComp::Var(var_name) => scope.get(&var_name[..]).unwrap().to_string(),
+            ExpComp::Var(var_name) => {
+                let num = scope.get(&var_name[..]).unwrap();
+                match &num.frac {
+                    None => num.whole.to_string(),
+                    Some(frac) => (num.whole as f64 + (*frac as f64 / 100f64)).to_string()
+                }
+            }
             ExpComp::Other(text) => text.clone()
         }
     })
     .join("");
     match mexprp::eval::<f64>(&expr).unwrap() {
-        mexprp::Answer::Single(num) => num.to_string(),
+        mexprp::Answer::Single(num) => {
+            let rounded = format!("{:.3}", num);
+            let normal = num.to_string();
+            if normal.chars().count() > rounded.chars().count()  {
+                rounded
+            } else {
+                normal
+            }
+        }
         mexprp::Answer::Multiple(_) => panic!("Unsupported math")
     }
 }
 
 fn process_question(question: &str, answer: Option<Answer>) -> Question {
-    let content = get_content(question);
+    lazy_static! {
+        static ref VAR: Regex = Regex::new(r"(?x)\|<v>([[:alpha:]][[:word:]]*):([[:alpha:]]*)=\[(-?[0-9]+),(-?[0-9]+)\]</v>\|").unwrap();
+    }
+    let mut content = get_content(&VAR.split(question).join(""));
+    for cap in VAR.captures_iter(question) {
+        content.vars.remove(&Var{ name: String::from(&cap[1]), num_type: String::from("int"), min: String::from("0"), max: String::from("99") });
+        content.vars.insert(Var{ name: String::from(&cap[1]), num_type: String::from(&cap[2]), min: String::from(&cap[3]), max: String::from(&cap[4])});
+    }
     Question { vars: content.vars, expressions: content.expressions, layout: content.layout, answer }
 }
 
@@ -146,19 +189,19 @@ fn get_content(text: &str) -> Content {
     lazy_static! {
         static ref EXP: Regex = Regex::new(r"\|<e>(.*?)</e>\|").unwrap();
     }
-    let mut vars: HashSet<String> = HashSet::new();
+    let mut vars: HashSet<Var> = HashSet::new();
     let expressions: Vec<Expression> = EXP.captures_iter(text).map(|cap| process_expression(&cap[1], &mut vars)).collect();
     let layout: Vec<String> = EXP.split(text).map(String::from).collect();
     Content{ vars, expressions, layout }
 }
 
-fn process_expression(expression: &str, vars: &mut HashSet<String>) -> Expression {
+fn process_expression(expression: &str, vars: &mut HashSet<Var>) -> Expression {
     lazy_static! {
         static ref VAR: Regex = Regex::new(r"[[:alpha:]][[:word:]]*").unwrap();
     }
     let mut vars_list: Vec<ExpComp> = Vec::new();
     for cap in VAR.captures_iter(expression) {
-        vars.insert(String::from(&cap[0]));
+        vars.insert(Var{ name: String::from(&cap[0]), num_type: String::from("int"), min: String::from("0"), max: String::from("99") });
         vars_list.push(ExpComp::Var(String::from(&cap[0])));
     }
     Expression { expression: VAR.split(expression).map(|text| ExpComp::Other(String::from(text))).interleave(vars_list).collect() }
@@ -246,6 +289,7 @@ mod tests {
         let doc = process("|<q>|<e>(a+b)-c</e>|</q>|");
         let result = generate(&doc, 3, Some(1));
         let num_re = Regex::new(r"^-?[[:digit:]]+$").unwrap();
+        println!("{}", result[0].content);
         assert!(num_re.is_match(&result[0].content));
     }
 
@@ -279,6 +323,21 @@ mod tests {
         for result in generate(&doc, 3, Some(1)) {
             assert_eq!(result.content, result.answers);
         }
-        
+    }
+
+    #[test]
+    fn test_var_bounds_are_processed() {
+        let doc = process("|<q>|<v>x:real=[5,55]</v>||<e>x/x</e>|</q>|");
+        for result in generate(&doc, 3, Some(1)) {
+            assert!(result.content == "1");
+        }
+    }
+
+    #[test]
+    fn test_numerical_rounding_to_three_decimal_places() {
+        let doc = process("|<q>|<e>1/3</e>|</q>|");
+        for result in generate(&doc, 3, Some(1)) {
+            assert_eq!("0.333", result.content);
+        }
     }
 }
