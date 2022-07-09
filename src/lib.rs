@@ -6,20 +6,20 @@
 //! are provided, morphius will generate an answer key for each final test to
 //! make grading easier.
 //! 
-//! ## Format
+//! # Format
 //! `morphius` processes content in a specific format described below:
 //! 
-//! ### Questions
+//! ##### Questions
 //! A question in `morphius` is indicated in the following format:
 //! 
-//! `"|<q>Question Content</q>|"` The content inside the `"|<q>"` and the `"</q>|"'
+//! `"|<q>Question Content</q>|"` The content inside the `"|<q>"` and the `"</q>|"`
 //! will be rearranged if desired to create a different order of questions on different 
 //! tests while the rest of the content in the file remains in the same place. This means
 //! that if question numbers are included in the template, those should be placed outside
 //! of the question itself in order to retain the correct numbering when questions are 
 //! rearranged.
 //! 
-//! ### Expressions
+//! ##### Expressions
 //! Expressions are used to add randomness to questions:
 //! 
 //! `|<e>a+b</e>|` is an example expression. Expressions must be placed inside of a question
@@ -32,7 +32,7 @@
 //! end up being the same). If you want more fine tuned control of the range of possible values, you can declare
 //! the variable.
 //! 
-//! ### Variable Declarations
+//! ##### Variable Declarations
 //! A variable can be declared anywhere in the question in the following format:
 //! 
 //! `|<v>var_name: type = [min,max]</v>|` where var_name is the name of your variable, type is either int or real, and min and max
@@ -40,7 +40,7 @@
 //! `|<v>a: int = [0,99]</v>|` This is the declaration assumed for any variable without a declaration, so including this exact
 //! declaration in your code would be unecessary.
 //! 
-//! ### Ansers
+//! ##### Answers
 //! 
 //! Answers are used to generate an answer key for each test. Answers should be included for every question when using
 //! `process_with_answers` They should be in the format `|<a>Answer</a>|` and should appear right after the question. Variables
@@ -48,13 +48,13 @@
 //! answer in terms of the randomly generated variables in your question.
 //! 
 //! 
-//! ## Examples
+//! # Examples
 //! Here is a simple example, you can find more example templates in the `examples` folder of the GitHub repository.
 //! ```
 //! let template = "
-//! |<q> This is a single question test. You must calculate the sum of two random numbers.
-//! What is |<e>a</e>| + |<e>b</e>|</q>|
-//! |<a> The answer to this question is: |<e>a+b</e>|</a>|";
+//! |<q>This is a single question test. You must calculate the sum of two random numbers.
+//! What is |<e>a</e>| + |<e>b</e>|?</q>|
+//! |<a>The answer to this question is: |<e>a+b</e>|</a>|";
 //! 
 //! let doc = morphius::process_with_answers(template);
 //! let tests = morphius::generate(&doc, 5, Some(1));
@@ -475,4 +475,5 @@ mod tests {
             assert_eq!("0.333", result.content);
         }
     }
+
 }
