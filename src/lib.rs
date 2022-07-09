@@ -208,7 +208,7 @@ pub fn process_with_answers(input: &str) -> Document {
 ///
 /// * `doc` - A reference to a Document for the template that you want to generate
 /// * `num_results` - The number of tests to generate
-/// * `num_quesitions` - The number of questions per test. Enter None to use all questions in the original order. To include all questions and reorder them, enter `Some(x}` where x is the total number of questions
+/// * `num_quesitions` - The number of questions per test. Enter None to use all questions in the original order. To include all questions and reorder them, enter `Some(x)` where x is the total number of questions
 ///
 /// # Examples
 ///
