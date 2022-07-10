@@ -1,7 +1,12 @@
 [package]
 name = "morphius"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+license = "Apache-2.0"
+description = "A tool to randomize test generation to eliminate cheating."
+readme = "README.md"
+repository = "https://github.com/Sapo-Dorado/morphius"
+keywords = ["random", "tests", "cheating","template", "generate"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
