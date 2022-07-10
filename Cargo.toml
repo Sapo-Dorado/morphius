@@ -7,6 +7,8 @@ description = "A tool to randomize test generation to eliminate cheating."
 readme = "README.md"
 repository = "https://github.com/Sapo-Dorado/morphius"
 keywords = ["random", "tests", "cheating","template", "generate"]
+categories = ["mathematics", "template-engine"]
+exclude = ["examples/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
